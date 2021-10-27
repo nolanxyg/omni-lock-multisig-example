@@ -1,0 +1,9 @@
+{
+  "name": "omni-lock-multisig",
+  "version": "0.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/mkxbl/omni-lock-multisig.git",
+  "author": "mkxbl <vyclzn@gmail.com>",
+  "license": "MIT",
+  "private": true
+}
