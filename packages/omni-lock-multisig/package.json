@@ -1,0 +1,20 @@
+{
+  "name": "omni-lock-multisig",
+  "version": "0.0.0",
+  "main": "lib",
+  "license": "MIT",
+  "scripts": {
+    "build": "yarn run build:types && yarn run build:js",
+    "build:types": "tsc -p tsconfig.build.json",
+    "build:js": "babel src --root-mode upward --extensions '.ts' --ignore '**/*.spec.ts' --ignore '**/__tests__/**' --out-dir lib",
+    "clean": "rimraf -rf ./lib",
+    "watch": "yarn run build:js --watch & yarn run build:types --watch"
+  },
+  "dependencies": {
+    "@ckb-lumos/base": "^0.18.0-rc1",
+    "@ckb-lumos/common-scripts": "^0.18.0-rc1",
+    "@ckb-lumos/helpers": "^0.18.0-rc1",
+    "@ckitjs/ckit": "^0.0.2",
+    "ckb-js-toolkit": "^0.10.2"
+  }
+}
