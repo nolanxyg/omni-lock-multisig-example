@@ -11,6 +11,7 @@
   "devDependencies": {
     "@babel/cli": "^7.15.7",
     "@babel/core": "^7.15.8",
+    "@babel/plugin-transform-modules-commonjs": "^7.16.0",
     "@babel/preset-env": "^7.15.8",
     "@babel/preset-typescript": "^7.15.0",
     "@types/jest": "^27.0.2",
@@ -22,11 +23,11 @@
   },
   "scripts": {
     "build:lib": "yarn lerna run build",
-    "clean:lib": "yarn lera run clean",
+    "clean:lib": "yarn lerna run clean",
     "watch:lib": "yarn run build:lib && yarn lerna exec --parallel yarn run watch",
     "test": "jest",
     "docker:up": "cd docker && docker-compose up -d",
     "docker:down": "cd docker && docker-compose down",
-    "ci": "yarn build:lib && yarn run docker:down && yarn run docker:up && yarn run test"
+    "ci": "yarn run docker:down && yarn run docker:up && yarn build:lib && yarn run test"
   }
 }

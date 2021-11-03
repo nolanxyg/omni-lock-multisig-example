@@ -4,5 +4,5 @@
     "outDir": "./lib",
   },
   "include": ["src"],
-  "exclude": ["**/*.spec.ts", "**/__tests__/**"]
+  "exclude": ["**/__tests__/**"]
 }

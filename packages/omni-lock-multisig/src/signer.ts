@@ -4,12 +4,10 @@ import {
     sealTransaction,
     TransactionSkeletonType,
 } from '@ckb-lumos/helpers';
-import {CkitProvider} from '@ckitjs/ckit';
 import {key} from '@ckb-lumos/hd';
 import {nonNullable} from "./utils";
 
 export async function signCreateAdminCellTx(
-    provider: CkitProvider,
     txSkeleton: TransactionSkeletonType,
     privateKey: string,
 ): Promise<Transaction> {

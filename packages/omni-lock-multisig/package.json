@@ -16,5 +16,11 @@
     "@ckb-lumos/helpers": "^0.18.0-rc1",
     "@ckitjs/ckit": "^0.0.2",
     "ckb-js-toolkit": "^0.10.2"
+  },
+  "devDependencies": {
+    "@types/app-root-path": "^1.2.4",
+    "@types/elliptic": "^6.4.13",
+    "app-root-path": "^3.0.0",
+    "babel-jest": "^27.3.1"
   }
 }
