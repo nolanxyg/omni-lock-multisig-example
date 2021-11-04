@@ -1,8 +1,8 @@
-import { HexString } from '@ckb-lumos/base';
+import { HexString } from "@ckb-lumos/base";
 
 export function nonNullable<X>(x: X): NonNullable<X> {
-    if (x == null) throw new Error('Null check failed');
-    return x as NonNullable<X>;
+  if (x == null) throw new Error("Null check failed");
+  return x as NonNullable<X>;
 }
 
 /**
@@ -16,9 +16,11 @@ export function nonNullable<X>(x: X): NonNullable<X> {
  * ```
  */
 export function randomHexString(lengthWithOut0x: number): HexString {
-    return '0x' + [...Array(lengthWithOut0x)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
+  return `0x${[...Array(lengthWithOut0x)]
+    .map(() => Math.floor(Math.random() * 16).toString(16))
+    .join("")}`;
 }
 
 export function bytesToHex(bytes: Uint8Array): string {
-    return `0x${[...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
+  return `0x${[...bytes].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
