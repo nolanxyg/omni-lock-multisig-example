@@ -251,7 +251,7 @@ export async function deployCkbScripts(
   provider: CkitProvider,
   ckbPrivateKey: string
 ): Promise<CkitConfig["SCRIPTS"]> {
-  const PATH_SUDT_DEP = path.join(scriptPath, "sudt");
+  const PATH_SUDT_DEP = path.join(scriptPath, "simple_udt");
   const PATH_ACP_DEP = path.join(scriptPath, "anyone_can_pay");
   const RC_DEP = path.join(scriptPath, "rc_lock");
 

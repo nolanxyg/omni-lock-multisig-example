@@ -10,8 +10,7 @@
     "prettier"
   ],
   "rules": {
-    "prettier/prettier": "error",
-    "no-console": "warn"
+    "prettier/prettier": "error"
   },
   "ignorePatterns": [
     "**/generated",

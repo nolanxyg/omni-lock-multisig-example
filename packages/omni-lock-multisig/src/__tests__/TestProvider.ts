@@ -82,7 +82,7 @@ export class TestProvider extends CkitProvider {
 
     debug("scripts are deploying via %s", this.assemberPrivateKey);
     const scripts = await deployCkbScripts(
-      appRootPath.resolve("/deps"),
+      appRootPath.resolve("/ckb-production-scripts/build"),
       this,
       this.#_assemberPrivateKey
     );
