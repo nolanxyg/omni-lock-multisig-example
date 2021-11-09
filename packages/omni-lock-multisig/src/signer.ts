@@ -12,7 +12,9 @@ export async function signCreateAdminCellTx(
   const { message } = nonNullable(txSkeleton.get("signingEntries").get(0));
   const Sig = key.signRecoverable(message, privateKey);
   return sealTransaction(txSkeleton, [Sig]);
-  // const hash = await provider.sendTransaction(tx);
-  // await provider.waitForTransactionCommitted(hash);
-  // return hash;
 }
+
+// export async function signUnlockMultisigCellTx(
+//   txSkeleton: TransactionSkeletonType,
+//   privateKeys: string[]
+// ): Promise<Transaction> {}
