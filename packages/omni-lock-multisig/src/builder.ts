@@ -1,14 +1,16 @@
 import {
-  Hash,
   Address,
   Cell,
-  utils,
-  Script,
   CellDep,
+  Hash,
   HexString,
+  Script,
+  Transaction,
+  utils,
 } from "@ckb-lumos/base";
 import { common, MultisigScript } from "@ckb-lumos/common-scripts";
 import {
+  createTransactionFromSkeleton,
   minimalCellCapacity,
   TransactionSkeleton,
   TransactionSkeletonType,
@@ -18,7 +20,10 @@ import { normalizers, Reader } from "ckb-js-toolkit";
 import { SerializeRCData } from "./generated/xudt-rce";
 import { SearchKey } from "@ckitjs/mercury-client";
 import { SerializeRcLockWitnessLock } from "./generated/rc-lock";
-import { SerializeWitnessArgs } from "@ckb-lumos/base/lib/core";
+import {
+  SerializeTransaction,
+  SerializeWitnessArgs,
+} from "@ckb-lumos/base/lib/core";
 
 export const SECP256K1_SIGNATURE_PLACEHOLDER =
   "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
@@ -26,6 +31,12 @@ export const SECP256K1_SIGNATURE_PLACEHOLDER =
 export interface CreateAdminCellOptions {
   sender: Address; // secp256k1_blake160 lockscript to supply capacity
   auth_smt_root: Hash; // smt_root field of RcRule in admin_cell_data
+}
+
+export interface CreateAdminCellResult {
+  txSkeleton: TransactionSkeletonType;
+  omnilockAddress: Address;
+  adminCellTypeId: Script;
 }
 
 export interface UnlockMultisigCellOptions {
@@ -44,7 +55,7 @@ export interface UnlockMultisigCellOptions {
 export async function buildCreateAdminCellTx(
   provider: CkitProvider,
   options: CreateAdminCellOptions
-): Promise<TransactionSkeletonType> {
+): Promise<CreateAdminCellResult> {
   let txSkeleton = TransactionSkeleton({
     cellProvider: provider.asIndexerCellProvider(),
   });
@@ -94,7 +105,7 @@ export async function buildCreateAdminCellTx(
   // admin cell
   const adminCell: Cell = {
     cell_output: {
-      capacity: "0x",
+      capacity: "0x0",
       lock: omniLockscript,
       type: typeId,
     },
@@ -103,9 +114,18 @@ export async function buildCreateAdminCellTx(
   const cellCapacity = minimalCellCapacity(adminCell);
   adminCell.cell_output.capacity = `0x${cellCapacity.toString(16)}`;
 
+  // omnilock cell
+  const omnilockCell: Cell = {
+    cell_output: {
+      capacity: `0x${BigInt(88800000000).toString(16)}`,
+      lock: omniLockscript,
+    },
+    data: "0x",
+  };
+
   // tx skeleton
   txSkeleton = txSkeleton.update("outputs", (outputs) => {
-    return outputs.push(adminCell);
+    return outputs.push(adminCell, omnilockCell);
   });
   txSkeleton = await completeTx(provider, txSkeleton, options.sender);
   console.log(`txSkeleton: ${JSON.stringify(txSkeleton)}`);
@@ -124,7 +144,11 @@ export async function buildCreateAdminCellTx(
   //   });
   // });
 
-  return txSkeleton;
+  return {
+    txSkeleton: txSkeleton,
+    omnilockAddress: provider.parseToAddress(omniLockscript),
+    adminCellTypeId: typeId,
+  };
   // return createTransactionFromSkeleton(txSkeleton);
 }
 
@@ -167,6 +191,13 @@ export async function buildUnlockMultisigCellTx(
   };
 
   // add cellDeps
+  txSkeleton = txSkeleton.update("cellDeps", (cellDeps) => {
+    const found = provider.config.SCRIPTS.SECP256K1_BLAKE160;
+    return cellDeps.push({
+      dep_type: found.DEP_TYPE,
+      out_point: { tx_hash: found.TX_HASH, index: found.INDEX },
+    });
+  });
   txSkeleton = txSkeleton.update("cellDeps", (cellDeps) => {
     return cellDeps.push(adminCellCellDep);
   });
@@ -228,9 +259,13 @@ export async function buildUnlockMultisigCellTx(
   // add witness
   const serializedMultisigScript = serializeMultisigScript(multisigScript);
   const signaturePlaceHolder =
-    "0x" +
-    serializedMultisigScript.slice(2) +
+    serializedMultisigScript +
     SECP256K1_SIGNATURE_PLACEHOLDER.slice(2).repeat(multisigScript.M);
+  console.log(`sig place holder: ${signaturePlaceHolder}`);
+  const authMultisigBlake160 = new utils.CKBHasher()
+    .update(serializedMultisigScript)
+    .digestHex()
+    .slice(0, 42);
   // const rcIdentity = {
   //   identity: new Reader(`0x06${serializedMultisigScript.slice(2)}`),
   //   proofs: [{ mask: 3, proof: new Reader(smtProof) }],
@@ -238,7 +273,7 @@ export async function buildUnlockMultisigCellTx(
   const omniLockWitness = {
     signature: new Reader(signaturePlaceHolder),
     rc_identity: {
-      identity: new Reader(`0x06${serializedMultisigScript.slice(2)}`),
+      identity: new Reader(`0x06${authMultisigBlake160.slice(2)}`),
       proofs: [{ mask: 3, proof: new Reader(smtProof) }], // TODO check mask
     },
   };
@@ -258,8 +293,28 @@ export async function buildUnlockMultisigCellTx(
   });
 
   // pay tx fee
+  const txFee = calculateFee(getTransactionSize(txSkeleton));
+  console.log(`txFee: ${txFee.toString(10)}`);
+  console.log("txSkeletonBefore: ", `${JSON.stringify(txSkeleton)}`);
+  txSkeleton = txSkeleton.update("outputs", (outputs) => {
+    return outputs.map((cell) => {
+      if (
+        cell.cell_output.lock.args ===
+          senderInputCells[0]!.cell_output.lock.args &&
+        cell.cell_output.lock.hash_type ===
+          senderInputCells[0]!.cell_output.lock.hash_type &&
+        cell.cell_output.lock.code_hash ===
+          senderInputCells[0]!.cell_output.lock.code_hash
+      ) {
+        cell.cell_output.capacity = `0x${(
+          BigInt(cell.cell_output.capacity) - txFee
+        ).toString(16)}`;
+      }
+      return cell;
+    });
+  });
 
-  console.log("txSkeleton: ", `${JSON.stringify(txSkeleton)}`);
+  console.log("txSkeletonAfter: ", `${JSON.stringify(txSkeleton)}`);
   return txSkeleton;
 }
 
@@ -333,4 +388,27 @@ export function serializeMultisigScript({
     ("00" + publicKeyHashes.length.toString(16)).slice(-2) +
     publicKeyHashes.map((h) => h.slice(2)).join("")
   );
+}
+
+function getTransactionSize(txSkeleton: TransactionSkeletonType): number {
+  const tx = createTransactionFromSkeleton(txSkeleton);
+  return getTransactionSizeByTx(tx);
+}
+
+function getTransactionSizeByTx(tx: Transaction): number {
+  const serializedTx = SerializeTransaction(
+    normalizers.NormalizeTransaction(tx)
+  );
+  // 4 is serialized offset bytesize
+  return serializedTx.byteLength + 4;
+}
+
+function calculateFee(size: number, feeRate = BigInt(10000)): bigint {
+  const ratio = 1000n;
+  const base = BigInt(size) * feeRate;
+  const fee = base / ratio;
+  if (fee * ratio < base) {
+    return fee + 1n;
+  }
+  return fee;
 }
