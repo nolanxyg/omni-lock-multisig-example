@@ -28,14 +28,16 @@ beforeAll(async () => {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const privateKey2 = provider.testPrivateKeys[2]!;
   multisigPrivateKeys.push(privateKey1, privateKey2);
+  key.privateKeyToBlake160(privateKey1);
   multisigScript = {
-    R: 2,
+    R: 0,
     M: 2,
     publicKeyHashes: [
       key.privateKeyToBlake160(privateKey1),
       key.privateKeyToBlake160(privateKey2),
     ],
   };
+  console.log(`multiscript: ${JSON.stringify(multisigScript, null, 2)}`);
   serializedMultisigScript = serializeMultisigScript(multisigScript);
   console.log(`serializedMultisigScript
  : ${serializedMultisigScript}`);
@@ -69,8 +71,10 @@ test("create admin cell", async () => {
   // const senderAddress = generateSecp256k1Blake160Address(key.privateKeyToBlake160(senderPrivateKey));
   const senderAddress = await provider.getGenesisSigner(1).getAddress();
   const buildResult = await buildCreateAdminCellTx(provider, {
+    // auth_smt_root:
+    //   "0x0d2cf6d7e9058ee6cc923119cb8231b64f05b19e6d4b143169fc8922c41e33a6",
     auth_smt_root:
-      "0x0d2cf6d7e9058ee6cc923119cb8231b64f05b19e6d4b143169fc8922c41e33a6",
+      "0x48633d55e1ab23ac1e05f851b5ac996faef9d3138e08d02727d5e01df637b00b",
     sender: senderAddress,
   });
   omnilockAddress = buildResult.omnilockAddress;
@@ -79,7 +83,7 @@ test("create admin cell", async () => {
     buildResult.txSkeleton,
     senderPrivateKey
   );
-  console.log(`signed Tx: ${JSON.stringify(signedTx)}`);
+  console.log(`signed Tx: ${JSON.stringify(signedTx, null, 2)}`);
   const txHash = await provider.sendTxUntilCommitted(signedTx);
   console.log("txHash", txHash);
 });
@@ -87,8 +91,10 @@ test("create admin cell", async () => {
 test("unlock omni lock", async () => {
   // const omnilockAddress =
   //   "ckt1qt496ulyv32e0x6f3e7xad8t3zhjskk5wnp6064e35twpkfpp4t0zqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqpcwkhdwz22lzwfgu0pclkdq7w8f7ytz7tvp3n64p8gt0ydqpqze9s3vqfdt";
+  // const smtProof =
+  //   "0x4c4fa3519b47dbecdc20bfc265cdadfe95f7b5d077ff1fad9806a27e099deb14189653ea7500000000000000000000000000000000000000000000000000000000000000004f5c";
   const smtProof =
-    "0x4c4fa3519b47dbecdc20bfc265cdadfe95f7b5d077ff1fad9806a27e099deb14189653ea7500000000000000000000000000000000000000000000000000000000000000004f5c";
+    "0x4c4fa6519e47dbecdc20bfc265cdadfe95f7b5d077ff1fad9806a27e099deb14189653ea7500000000000000000000000000000000000000000000000000000000000000004f59";
   // const adminCellTypeId: Script = {
   //   code_hash:
   //     "0x00000000000000000000000000000000000000000000000000545950455f4944",
@@ -112,7 +118,9 @@ test("unlock omni lock", async () => {
     smtProof,
     multisigPrivateKeys
   );
-  console.log(`unlock omnilock signed tx: ${JSON.stringify(signedTx)}`);
+  console.log(
+    `unlock omnilock signed tx: ${JSON.stringify(signedTx, null, 2)}`
+  );
   const txHash = await provider.sendTxUntilCommitted(signedTx);
   console.log("txHash", txHash);
 });

@@ -270,6 +270,9 @@ export async function buildUnlockMultisigCellTx(
   //   identity: new Reader(`0x06${serializedMultisigScript.slice(2)}`),
   //   proofs: [{ mask: 3, proof: new Reader(smtProof) }],
   // };
+  // const zeroSig = `0x${"0".repeat(signaturePlaceHolder.length - 2)}`;
+  // console.log(`zero sig place holder: ${zeroSig}`);
+
   const omniLockWitness = {
     signature: new Reader(signaturePlaceHolder),
     rc_identity: {
@@ -283,7 +286,7 @@ export async function buildUnlockMultisigCellTx(
   const witness = new Reader(
     SerializeWitnessArgs(
       normalizers.NormalizeWitnessArgs({
-        lock: omniLockWitnessHexString,
+        lock: `0x${"0".repeat(omniLockWitnessHexString.length - 2)}`,
       })
     )
   ).serializeJson();

@@ -49,7 +49,11 @@ export function signUnlockMultisigCellTx(
   txSkeleton = secp256k1Blake160Multisig.prepareSigningEntries(txSkeleton, {
     config: trickyLumosConfig,
   });
+
   const { message } = nonNullable(txSkeleton.get("signingEntries").get(0));
+  // const message =
+  //   "0x123478c07740eef9989a7f27d207792fdcae04e9ad6578cbce59981016684983";
+
   console.log(`unlock omnilock msg: ${message}`);
   const sigs = privateKeys.map((privKey) => {
     return key.signRecoverable(message, privKey).slice(2);
