@@ -2,9 +2,14 @@ import { TestProvider } from "./TestProvider";
 import {
   buildCreateAdminCellTx,
   buildUnlockMultisigCellTx,
+  buildUpdateAdminCellTx,
   serializeMultisigScript,
 } from "../builder";
-import { signCreateAdminCellTx, signUnlockMultisigCellTx } from "../signer";
+import {
+  signCreateAdminCellTx,
+  signUnlockMultisigCellTx,
+  signUpdateAdminCellTx,
+} from "../signer";
 import { key } from "@ckb-lumos/hd";
 import { Address, Script, utils } from "@ckb-lumos/base";
 import { MultisigScript } from "@ckb-lumos/common-scripts";
@@ -120,6 +125,36 @@ test("unlock omni lock", async () => {
   );
   console.log(
     `unlock omnilock signed tx: ${JSON.stringify(signedTx, null, 2)}`
+  );
+  const txHash = await provider.sendTxUntilCommitted(signedTx);
+  console.log("txHash", txHash);
+});
+
+test("update admin cell", async () => {
+  const smtProof =
+    "0x4c4fa6519e47dbecdc20bfc265cdadfe95f7b5d077ff1fad9806a27e099deb14189653ea7500000000000000000000000000000000000000000000000000000000000000004f59";
+  const senderPrivateKey = provider.testPrivateKeys[3]!;
+  const senderAddress = await provider.getGenesisSigner(3).getAddress();
+
+  const txSkeleton = await buildUpdateAdminCellTx(provider, {
+    sender: senderAddress,
+    multisigScript: multisigScript,
+    smtProof: smtProof,
+    adminCellTypeId: adminCellTypeId,
+    new_auth_smt_root:
+      "0xffff3d55e1ab23ac1e05f851b5ac996faef9d3138e08d02727d5e01df637ffff",
+  });
+  console.log(`update admin cell tx skeleton: ${JSON.stringify(txSkeleton)}`);
+  const signedTx = signUpdateAdminCellTx(
+    txSkeleton,
+    provider.config,
+    multisigScript,
+    smtProof,
+    multisigPrivateKeys,
+    senderPrivateKey
+  );
+  console.log(
+    `update admin cell signed tx: ${JSON.stringify(signedTx, null, 2)}`
   );
   const txHash = await provider.sendTxUntilCommitted(signedTx);
   console.log("txHash", txHash);

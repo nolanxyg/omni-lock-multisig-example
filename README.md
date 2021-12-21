@@ -11,5 +11,8 @@ make all-via-docker
 ## Run tests
 
 ```bash
+cd docker
+docker-compose up -d
+cd ..
 yarn test
 ```

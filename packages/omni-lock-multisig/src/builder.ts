@@ -48,9 +48,13 @@ export interface UnlockMultisigCellOptions {
   amount: string; // unit ckb
 }
 
-// export interface UpdateAdminCellOptions {
-//   auth_smt_root: Hash;
-// }
+export interface UpdateAdminCellOptions {
+  sender: Address; // pay tx fee
+  multisigScript: MultisigScript; // multisig config to be updated
+  smtProof: HexString; // part of omni_multisig_lockscript witness
+  adminCellTypeId: Script; // search admin cell via ckb indexer
+  new_auth_smt_root: Hash;
+}
 
 export async function buildCreateAdminCellTx(
   provider: CkitProvider,
@@ -130,26 +134,11 @@ export async function buildCreateAdminCellTx(
   txSkeleton = await completeTx(provider, txSkeleton, options.sender);
   console.log(`txSkeleton: ${JSON.stringify(txSkeleton)}`);
 
-  // const secp256k1Config = provider.config.SCRIPTS.SECP256K1_BLAKE160;
-  // txSkeleton = txSkeleton.update("cellDeps", (cellDeps) => {
-  //   return cellDeps.clear();
-  // });
-  // txSkeleton = txSkeleton.update("cellDeps", (cellDeps) => {
-  //   return cellDeps.push({
-  //     out_point: {
-  //       tx_hash: secp256k1Config.TX_HASH,
-  //       index: secp256k1Config.INDEX,
-  //     },
-  //     dep_type: secp256k1Config.DEP_TYPE,
-  //   });
-  // });
-
   return {
     txSkeleton: txSkeleton,
     omnilockAddress: provider.parseToAddress(omniLockscript),
     adminCellTypeId: typeId,
   };
-  // return createTransactionFromSkeleton(txSkeleton);
 }
 
 // transfer ckb from omni_multisig_lockscript to some recipient
@@ -169,12 +158,6 @@ export async function buildUnlockMultisigCellTx(
   let txSkeleton = TransactionSkeleton({
     cellProvider: provider.asIndexerCellProvider(),
   });
-
-  // const omniMultisigLockscript = provider.parseToScript(sender);
-  // console.log(
-  //   "omniMultisigLockscript:",
-  //   `${JSON.stringify(omniMultisigLockscript)}`
-  // );
 
   // search admin cell
   const searchKey: SearchKey = {
@@ -266,12 +249,6 @@ export async function buildUnlockMultisigCellTx(
     .update(serializedMultisigScript)
     .digestHex()
     .slice(0, 42);
-  // const rcIdentity = {
-  //   identity: new Reader(`0x06${serializedMultisigScript.slice(2)}`),
-  //   proofs: [{ mask: 3, proof: new Reader(smtProof) }],
-  // };
-  // const zeroSig = `0x${"0".repeat(signaturePlaceHolder.length - 2)}`;
-  // console.log(`zero sig place holder: ${zeroSig}`);
 
   const omniLockWitness = {
     signature: new Reader(signaturePlaceHolder),
@@ -293,6 +270,184 @@ export async function buildUnlockMultisigCellTx(
 
   txSkeleton = txSkeleton.update("witnesses", (witnesses) => {
     return witnesses.push(witness);
+  });
+
+  // pay tx fee
+  const txFee = calculateFee(getTransactionSize(txSkeleton));
+  console.log(`txFee: ${txFee.toString(10)}`);
+  console.log("txSkeletonBefore: ", `${JSON.stringify(txSkeleton)}`);
+  txSkeleton = txSkeleton.update("outputs", (outputs) => {
+    return outputs.map((cell) => {
+      if (
+        cell.cell_output.lock.args ===
+          senderInputCells[0]!.cell_output.lock.args &&
+        cell.cell_output.lock.hash_type ===
+          senderInputCells[0]!.cell_output.lock.hash_type &&
+        cell.cell_output.lock.code_hash ===
+          senderInputCells[0]!.cell_output.lock.code_hash
+      ) {
+        cell.cell_output.capacity = `0x${(
+          BigInt(cell.cell_output.capacity) - txFee
+        ).toString(16)}`;
+      }
+      return cell;
+    });
+  });
+
+  console.log("txSkeletonAfter: ", `${JSON.stringify(txSkeleton)}`);
+  return txSkeleton;
+}
+
+export async function buildUpdateAdminCellTx(
+  provider: CkitProvider,
+  options: UpdateAdminCellOptions
+): Promise<TransactionSkeletonType> {
+  const {
+    sender,
+    multisigScript,
+    smtProof,
+    adminCellTypeId,
+    new_auth_smt_root,
+  } = options;
+
+  let txSkeleton = TransactionSkeleton({
+    cellProvider: provider.asIndexerCellProvider(),
+  });
+
+  // add cellDeps
+  txSkeleton = txSkeleton.update("cellDeps", (cellDeps) => {
+    const found = provider.config.SCRIPTS.SECP256K1_BLAKE160;
+    return cellDeps.push({
+      dep_type: found.DEP_TYPE,
+      out_point: { tx_hash: found.TX_HASH, index: found.INDEX },
+    });
+  });
+  txSkeleton = txSkeleton.update("cellDeps", (cellDeps) => {
+    const found = provider.config.SCRIPTS.RC_LOCK;
+    return cellDeps.push({
+      dep_type: found.DEP_TYPE,
+      out_point: { tx_hash: found.TX_HASH, index: found.INDEX },
+    });
+  });
+
+  // add inputs
+
+  // search admin cell
+  const searchKey: SearchKey = {
+    script: adminCellTypeId,
+    script_type: "type",
+  };
+  const adminCellOutpoints = (
+    await provider.mercury.get_cells({ search_key: searchKey })
+  ).objects;
+  if (adminCellOutpoints.length !== 1) throw new Error("admin cell not unique");
+  const adminCellOutpoint = adminCellOutpoints[0]!;
+  const inputAdminCell: Cell = {
+    cell_output: {
+      capacity: adminCellOutpoint.output.capacity,
+      lock: adminCellOutpoint.output.lock,
+    },
+    data: adminCellOutpoint.output_data,
+    out_point: adminCellOutpoint.out_point,
+  };
+  txSkeleton = txSkeleton.update("inputs", (inputs) => {
+    return inputs.push(inputAdminCell);
+  });
+
+  const senderNeedCapacity =
+    (BigInt(byteLenOfCkbLiveCell(20)) + BigInt(1)) * BigInt(100000000);
+  const senderInputOutpoints = await provider.collectCkbLiveCells(
+    sender,
+    `0x${senderNeedCapacity.toString(16)}`
+  );
+  const senderInputCells: Cell[] = senderInputOutpoints.map((outpoint) => ({
+    cell_output: {
+      capacity: outpoint.output.capacity,
+      lock: outpoint.output.lock,
+    },
+    data: outpoint.output_data,
+    out_point: outpoint.out_point,
+  }));
+  txSkeleton = txSkeleton.update("inputs", (inputs) => {
+    return inputs.push(...senderInputCells);
+  });
+
+  // add outputs
+  const serializedNewRcData = SerializeRCData({
+    type: "RCRule",
+    value: {
+      smt_root: new Reader(new_auth_smt_root).toArrayBuffer(),
+      flags: 2,
+    },
+  });
+  const serializedNewRcDataHexString = new Reader(
+    serializedNewRcData
+  ).serializeJson();
+  console.log(`admin cell data: ${serializedNewRcDataHexString}`);
+  const outputAdminCell: Cell = {
+    cell_output: {
+      capacity: inputAdminCell.cell_output.capacity,
+      lock: inputAdminCell.cell_output.lock,
+    },
+    data: serializedNewRcDataHexString,
+  };
+  txSkeleton = txSkeleton.update("outputs", (outputs) => {
+    return outputs.push(outputAdminCell);
+  });
+
+  const inputTotalCapacity = senderInputOutpoints
+    .map((o) => BigInt(o.output.capacity))
+    .reduce((a, b) => a + b, BigInt(0));
+  const changeCellCapacity = inputTotalCapacity;
+  const changeCell: Cell = {
+    cell_output: {
+      capacity: `0x${changeCellCapacity.toString(16)}`,
+      lock: senderInputCells[0]!.cell_output.lock,
+    },
+    data: "0x",
+  };
+  txSkeleton = txSkeleton.update("outputs", (outputs) => {
+    return outputs.push(changeCell);
+  });
+
+  // add witness
+  const serializedMultisigScript = serializeMultisigScript(multisigScript);
+  const signaturePlaceHolder =
+    serializedMultisigScript +
+    SECP256K1_SIGNATURE_PLACEHOLDER.slice(2).repeat(multisigScript.M);
+  console.log(`sig place holder: ${signaturePlaceHolder}`);
+  const authMultisigBlake160 = new utils.CKBHasher()
+    .update(serializedMultisigScript)
+    .digestHex()
+    .slice(0, 42);
+
+  const omniLockWitness = {
+    signature: new Reader(signaturePlaceHolder),
+    rc_identity: {
+      identity: new Reader(`0x06${authMultisigBlake160.slice(2)}`),
+      proofs: [{ mask: 3, proof: new Reader(smtProof) }], // TODO check mask
+    },
+  };
+  const omniLockWitnessHexString = new Reader(
+    SerializeRcLockWitnessLock(omniLockWitness)
+  ).serializeJson();
+  const witness = new Reader(
+    SerializeWitnessArgs(
+      normalizers.NormalizeWitnessArgs({
+        lock: `0x${"0".repeat(omniLockWitnessHexString.length - 2)}`,
+      })
+    )
+  ).serializeJson();
+  const senderWitness = new Reader(
+    SerializeWitnessArgs(
+      normalizers.NormalizeWitnessArgs({
+        lock: SECP256K1_SIGNATURE_PLACEHOLDER,
+      })
+    )
+  ).serializeJson();
+
+  txSkeleton = txSkeleton.update("witnesses", (witnesses) => {
+    return witnesses.push(witness, senderWitness);
   });
 
   // pay tx fee
@@ -360,11 +515,11 @@ async function completeTx(
 function byteLenOfCkbLiveCell(lockArgsByteLen = 20): number {
   // prettier-ignore
   return (
-        8 /* capacity: u64 */ +
-        32 /* code_hash: U256 */ +
-        lockArgsByteLen +
-        1 /* hash_type: u8 */
-    )
+    8 /* capacity: u64 */ +
+    32 /* code_hash: U256 */ +
+    lockArgsByteLen +
+    1 /* hash_type: u8 */
+  );
 }
 
 /**

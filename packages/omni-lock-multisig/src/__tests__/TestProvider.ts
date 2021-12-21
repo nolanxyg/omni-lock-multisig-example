@@ -47,6 +47,7 @@ export class TestProvider extends CkitProvider {
 
   override async init(): Promise<void> {
     const config = await this.deployDeps();
+    console.log("provider config:", JSON.stringify(config));
     await super.init(config);
   }
 
