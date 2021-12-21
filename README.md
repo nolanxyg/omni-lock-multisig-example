@@ -1,4 +1,9 @@
-# omni-lock-multisig
+# omni-lock-multisig-example
+
+Example code to:
+1. Generate omni-lock-multisig-admin-cell
+2. Unlock omni-lock-multisig-cell
+3. Update omni-lock-multisig-admin-cell(update multisigScript)
 
 ## Build omni-lock
 
@@ -11,8 +16,9 @@ make all-via-docker
 ## Run tests
 
 ```bash
-cd docker
+# cd docker
 docker-compose up -d
-cd ..
+
+# cd project
 yarn test
 ```

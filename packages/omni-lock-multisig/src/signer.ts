@@ -45,20 +45,12 @@ export function signUnlockMultisigCellTx(
   });
 
   const { message } = nonNullable(txSkeleton.get("signingEntries").get(0));
-  // const message =
-  //   "0x123478c07740eef9989a7f27d207792fdcae04e9ad6578cbce59981016684983";
-
   console.log(`unlock omnilock msg: ${message}`);
   const sigs = privateKeys.map((privKey) => {
     return key.signRecoverable(message, privKey).slice(2);
   });
   const multisigs = sigs.join("");
   console.log(`multisigs: ${multisigs}`);
-
-  // const unsignedWitness = txSkeleton.witnesses.get(0)!;
-  // const unsignedWitnessArgs = new core.WitnessArgs(new Reader(unsignedWitness));
-  // const unsignedLock = unsignedWitnessArgs.getLock().value().raw();
-  // const omniLock = new RcLockWitnessLock(unsignedLock, { validate: true });
 
   const serializedMultisigScript = serializeMultisigScript(multisigScript);
   const signaturePlaceHolder = serializedMultisigScript + multisigs;
@@ -119,30 +111,12 @@ export function signUpdateAdminCellTx(
     `${JSON.stringify(txSkeleton)}`
   );
 
-  // const trickyLumosConfigMK = {
-  //   PREFIX: config.PREFIX,
-  //   SCRIPTS: {
-  //     SECP256K1_BLAKE160: config.SCRIPTS.SECP256K1_BLAKE160,
-  //     SECP256K1_BLAKE160_MULTISIG: config.SCRIPTS.RC_LOCK,
-  //   },
-  // };
-  // console.log(
-  //   "txSkeletonWithSigningEntriesMK: ",
-  //   `${JSON.stringify(
-  //     common.prepareSigningEntries(txSkeleton, {
-  //       config: trickyLumosConfigMK,
-  //     })
-  //   )}`
-  // );
-
   const { message } = nonNullable(
     txSkeleton
       .get("signingEntries")
       .filter((value) => value.index === 0)
       .get(0)
   );
-  // const message =
-  //   "0x123478c07740eef9989a7f27d207792fdcae04e9ad6578cbce59981016684983";
 
   console.log(`update admin cell msg: ${message}`);
   const sigs = privateKeys.map((privKey) => {
@@ -150,11 +124,6 @@ export function signUpdateAdminCellTx(
   });
   const multisigs = sigs.join("");
   console.log(`multisigs: ${multisigs}`);
-
-  // const unsignedWitness = txSkeleton.witnesses.get(0)!;
-  // const unsignedWitnessArgs = new core.WitnessArgs(new Reader(unsignedWitness));
-  // const unsignedLock = unsignedWitnessArgs.getLock().value().raw();
-  // const omniLock = new RcLockWitnessLock(unsignedLock, { validate: true });
 
   const serializedMultisigScript = serializeMultisigScript(multisigScript);
   const signaturePlaceHolder = serializedMultisigScript + multisigs;
